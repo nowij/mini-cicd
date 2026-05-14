@@ -228,6 +228,21 @@ public class DeployService {
         });
     }
 
+    public void stopApp(Project project) throws Exception {
+        if (!hasValue(project.getDeployHost())) {
+            throw new RuntimeException("배포 서버가 설정되지 않았습니다.");
+        }
+        if (!hasValue(project.getStopCommand())) {
+            throw new RuntimeException("종료 명령어가 설정되지 않았습니다.");
+        }
+        Session session = connectSsh(project, null);
+        try {
+            runRemoteCommand(session, project.getStopCommand(), null, false);
+        } finally {
+            if (session != null && session.isConnected()) session.disconnect();
+        }
+    }
+
     private boolean hasValue(String s) {
         return s != null && !s.isBlank();
     }

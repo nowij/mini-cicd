@@ -1,165 +1,256 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CI/CD Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>CI/CD Pipeline - 대시보드</title>
+    <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet">
+    <link href="/css/sb-admin-2.min.css" rel="stylesheet">
+    <link href="/css/custom.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .navbar { background-color: #1a1a2e; }
-        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-        .status-SUCCESS { color: #198754; }
-        .status-FAILED { color: #dc3545; }
-        .status-BUILDING, .status-DEPLOYING { color: #0d6efd; }
-        .status-PENDING { color: #6c757d; }
-        .badge-SUCCESS { background-color: #198754; }
-        .badge-FAILED { background-color: #dc3545; }
-        .badge-BUILDING, .badge-DEPLOYING { background-color: #0d6efd; }
-        .badge-PENDING { background-color: #6c757d; }
-        .badge-CANCELLED { background-color: #fd7e14; }
-        .branch-item { cursor: pointer; padding: 6px 12px; border-radius: 6px; }
+        .badge-SUCCESS   { background-color: #1cc88a; color: #fff; }
+        .badge-FAILED    { background-color: #e74a3b; color: #fff; }
+        .badge-BUILDING  { background-color: #4e73df; color: #fff; animation: badge-pulse 1.2s infinite; }
+        .badge-DEPLOYING { background-color: #36b9cc; color: #fff; animation: badge-pulse 1.2s infinite; }
+        .badge-PENDING   { background-color: #858796; color: #fff; }
+        .badge-CANCELLED { background-color: #f6c23e; color: #fff; }
+        @keyframes badge-pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+        .branch-item { cursor: pointer; padding: 8px 12px; border-radius: 6px; }
         .branch-item:hover { background: #f0f4ff; }
-        .branch-item.selected { background: #e7f0ff; font-weight: 600; color: #0d6efd; }
-        .branch-list { max-height: 260px; overflow-y: auto; }
+        .branch-item.selected { background: #e7f0ff; font-weight: 600; color: #4e73df; }
+        .branch-list { max-height: 250px; overflow-y: auto; }
     </style>
 </head>
-<body>
-<nav class="navbar navbar-dark px-4 py-2">
-    <a class="navbar-brand fw-bold" href="/"><i class="bi bi-rocket-takeoff me-2"></i>CI/CD Dashboard</a>
-    <a class="btn btn-outline-light btn-sm" href="/projects/new">
-        <i class="bi bi-plus-lg me-1"></i>새 프로젝트
-    </a>
-</nav>
+<body id="page-top">
 
-<div class="container py-4">
-    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
-        <span th:text="${successMessage}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+<div id="wrapper">
 
-    <div th:if="${#lists.isEmpty(projects)}" class="text-center py-5">
-        <i class="bi bi-folder-plus display-1 text-muted"></i>
-        <h4 class="mt-3 text-muted">등록된 프로젝트가 없습니다</h4>
-        <a href="/projects/new" class="btn btn-primary mt-2">
-            <i class="bi bi-plus-lg me-1"></i>첫 프로젝트 추가
+    <!-- Sidebar -->
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+        <a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
+            <div class="sidebar-brand-icon">
+                <i class="fas fa-rocket"></i>
+            </div>
+            <div class="sidebar-brand-text mx-3">CI/CD Pipeline</div>
         </a>
-    </div>
-
-    <div class="row g-3" th:unless="${#lists.isEmpty(projects)}">
-        <div class="col-md-6 col-lg-4" th:each="project : ${projects}">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <h5 class="card-title mb-1">
-                                <a th:href="@{/projects/{id}(id=${project.id})}"
-                                   class="text-decoration-none text-dark fw-bold"
-                                   th:text="${project.name}">프로젝트명</a>
-                            </h5>
-                            <small class="text-muted" th:text="${project.description}"></small>
-                        </div>
-                        <span class="badge rounded-pill"
-                              th:if="${lastBuilds[project.id] != null}"
-                              th:classappend="'badge-' + ${lastBuilds[project.id].status}"
-                              th:text="${lastBuilds[project.id].status}">
-                        </span>
-                        <span class="badge rounded-pill badge-PENDING" th:unless="${lastBuilds[project.id] != null}">
-                            NO BUILD
-                        </span>
-                    </div>
-
-                    <div class="mt-3 small text-muted">
-                        <div><i class="bi bi-code-square me-1"></i>
-                            <span th:text="${project.projectType.displayName}"></span>
-                        </div>
-                        <div><i class="bi bi-git me-1"></i>
-                            <span th:text="${project.repoUrl}"></span>
-                        </div>
-                        <div><i class="bi bi-branch me-1"></i>
-                            <span th:text="${project.branch}"></span>
-                        </div>
-                        <div th:if="${lastBuilds[project.id] != null}">
-                            <i class="bi bi-clock me-1"></i>
-                            마지막 빌드: <span th:text="${#temporals.format(lastBuilds[project.id].startedAt, 'MM/dd HH:mm')}"></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-footer bg-transparent d-flex gap-2">
-                    <button type="button" class="btn btn-primary btn-sm flex-grow-1"
-                            th:data-project-id="${project.id}"
-                            th:data-project-name="${project.name}"
-                            th:data-project-branch="${project.branch}"
-                            onclick="openDeployModal(this.dataset.projectId, this.dataset.projectName, this.dataset.projectBranch)">
-                        <i class="bi bi-play-fill me-1"></i>배포
-                    </button>
-                    <a th:href="@{/projects/{id}(id=${project.id})}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-list-ul"></i>
-                    </a>
-                    <a th:href="@{/projects/{id}/edit(id=${project.id})}" class="btn btn-outline-secondary btn-sm">
-                        <i class="bi bi-gear"></i>
-                    </a>
-                </div>
-            </div>
+        <hr class="sidebar-divider my-0">
+        <li class="nav-item active">
+            <a class="nav-link" href="/">
+                <i class="fas fa-fw fa-th-large"></i>
+                <span>대시보드</span>
+            </a>
+        </li>
+        <hr class="sidebar-divider">
+        <div class="sidebar-heading">관리</div>
+        <li class="nav-item">
+            <a class="nav-link" href="/projects/new">
+                <i class="fas fa-fw fa-plus-circle"></i>
+                <span>새 프로젝트</span>
+            </a>
+        </li>
+        <hr class="sidebar-divider d-none d-md-block">
+        <div class="text-center d-none d-md-inline">
+            <button class="rounded-circle border-0" id="sidebarToggle"></button>
         </div>
-    </div>
-</div>
-<!-- 브랜치 선택 배포 모달 -->
-<div class="modal fade" id="deployModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header border-0 pb-0">
-                <div>
-                    <h5 class="modal-title fw-bold"><i class="bi bi-rocket-takeoff me-2 text-primary"></i>배포</h5>
-                    <p class="text-muted small mb-0" id="modal-project-name"></p>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body pt-3">
-                <p class="small fw-semibold text-muted mb-2">배포할 브랜치 선택</p>
+    </ul>
+    <!-- End of Sidebar -->
 
-                <!-- 로딩 -->
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+
+            <!-- Topbar -->
+            <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+                <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                    <i class="fa fa-bars"></i>
+                </button>
+                <span class="navbar-text font-weight-bold text-gray-800">
+                    <i class="fas fa-th-large mr-2 text-primary"></i>프로젝트 대시보드
+                </span>
+                <ul class="navbar-nav ml-auto">
+                    <li class="nav-item">
+                        <a class="btn btn-primary btn-sm my-auto mr-3" href="/projects/new">
+                            <i class="fas fa-plus fa-sm mr-1"></i>새 프로젝트
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            <!-- End of Topbar -->
+
+            <!-- Page Content -->
+            <div class="container-fluid">
+
+                <!-- Flash messages -->
+                <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span th:text="${successMessage}"></span>
+                    <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+                </div>
+
+                <!-- Page Heading -->
+                <div class="d-sm-flex align-items-center justify-content-between mb-4">
+                    <h1 class="h3 mb-0 text-gray-800">프로젝트 목록</h1>
+                    <span class="text-gray-500 small" th:unless="${#lists.isEmpty(projects)}">
+                        총 <span class="font-weight-bold text-primary" th:text="${#lists.size(projects)}"></span>개 프로젝트
+                    </span>
+                </div>
+
+                <!-- Empty State -->
+                <div th:if="${#lists.isEmpty(projects)}" class="text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-folder-open fa-5x text-gray-300"></i>
+                    </div>
+                    <h5 class="text-gray-400">등록된 프로젝트가 없습니다</h5>
+                    <p class="text-gray-400 small">첫 번째 프로젝트를 추가해서 CI/CD 파이프라인을 시작하세요.</p>
+                    <a href="/projects/new" class="btn btn-primary mt-2">
+                        <i class="fas fa-plus mr-1"></i>첫 프로젝트 추가
+                    </a>
+                </div>
+
+                <!-- Project Cards -->
+                <div class="row" th:unless="${#lists.isEmpty(projects)}">
+                    <div class="col-xl-4 col-md-6 mb-4" th:each="project : ${projects}">
+                        <div class="card shadow h-100">
+                            <div class="card-header py-3 d-flex align-items-center justify-content-between">
+                                <h6 class="m-0 font-weight-bold text-primary text-truncate"
+                                    style="max-width:160px">
+                                    <a th:href="@{/projects/{id}(id=${project.id})}"
+                                       th:text="${project.name}"
+                                       class="text-primary text-decoration-none"></a>
+                                </h6>
+                                <span th:if="${lastBuilds[project.id] != null}"
+                                      class="badge"
+                                      th:classappend="'badge-' + ${lastBuilds[project.id].status}"
+                                      th:text="${lastBuilds[project.id].status}">
+                                </span>
+                                <span th:unless="${lastBuilds[project.id] != null}"
+                                      class="badge badge-PENDING">NO BUILD</span>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small mb-3"
+                                   th:text="${project.description != null ? project.description : '설명 없음'}"></p>
+                                <div class="small text-gray-600">
+                                    <div class="mb-1">
+                                        <i class="fas fa-code fa-fw text-gray-400 mr-1"></i>
+                                        <span class="badge badge-light border"
+                                              th:text="${project.projectType.displayName}"></span>
+                                    </div>
+                                    <div class="mb-1 text-truncate">
+                                        <i class="fas fa-code-branch fa-fw text-gray-400 mr-1"></i>
+                                        <span th:text="${project.branch}"></span>
+                                    </div>
+                                    <div class="mb-1 text-truncate"
+                                         th:title="${project.repoUrl}">
+                                        <i class="fab fa-github fa-fw text-gray-400 mr-1"></i>
+                                        <span class="text-truncate" th:text="${project.repoUrl}"></span>
+                                    </div>
+                                    <div th:if="${lastBuilds[project.id] != null}" class="text-muted">
+                                        <i class="fas fa-clock fa-fw text-gray-400 mr-1"></i>
+                                        마지막 빌드:
+                                        <span th:text="${#temporals.format(lastBuilds[project.id].startedAt, 'MM/dd HH:mm')}"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-white border-top-0 pt-0">
+                                <div class="d-flex">
+                                    <button type="button"
+                                            class="btn btn-primary btn-sm flex-grow-1 mr-1"
+                                            th:data-project-id="${project.id}"
+                                            th:data-project-name="${project.name}"
+                                            th:data-project-branch="${project.branch}"
+                                            onclick="openDeployModal(this.dataset.projectId, this.dataset.projectName, this.dataset.projectBranch)">
+                                        <i class="fas fa-play fa-sm mr-1"></i>배포
+                                    </button>
+                                    <a th:href="@{/projects/{id}(id=${project.id})}"
+                                       class="btn btn-outline-secondary btn-sm mr-1"
+                                       title="빌드 목록">
+                                        <i class="fas fa-list fa-sm"></i>
+                                    </a>
+                                    <a th:href="@{/projects/{id}/edit(id=${project.id})}"
+                                       class="btn btn-outline-secondary btn-sm"
+                                       title="설정">
+                                        <i class="fas fa-cog fa-sm"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <!-- End Page Content -->
+        </div>
+
+        <!-- Footer -->
+        <footer class="sticky-footer bg-white">
+            <div class="container my-auto">
+                <div class="copyright text-center my-auto">
+                    <span>CI/CD Pipeline &copy; 2026</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+    <!-- End of Content Wrapper -->
+</div>
+<!-- End of Page Wrapper -->
+
+<a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
+
+<!-- 배포 모달 -->
+<div class="modal fade" id="deployModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-rocket text-primary mr-2"></i>배포 시작
+                </h5>
+                <button class="close" type="button" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-1" id="modal-project-name"></p>
+                <hr class="mt-2 mb-3">
+                <p class="text-xs font-weight-bold text-uppercase text-gray-500 mb-2">배포할 브랜치 선택</p>
+
                 <div id="branch-loading" class="text-center py-3">
-                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    <div class="spinner-border spinner-border-sm text-primary mr-2" role="status"></div>
                     <span class="text-muted small">브랜치 목록을 불러오는 중...</span>
                 </div>
 
-                <!-- 브랜치 목록 -->
                 <div id="branch-list-area" class="branch-list" style="display:none"></div>
 
-                <!-- 오류 시 직접 입력 -->
                 <div id="branch-manual-area" style="display:none">
                     <div class="alert alert-warning small py-2 mb-2">
-                        <i class="bi bi-exclamation-triangle me-1"></i>브랜치 목록을 불러오지 못했습니다. 직접 입력하세요.
+                        <i class="fas fa-exclamation-triangle mr-1"></i>브랜치 목록을 불러오지 못했습니다. 직접 입력하세요.
                     </div>
                     <input type="text" id="branch-manual-input" class="form-control form-control-sm"
                            placeholder="브랜치 이름 입력 (예: main)">
                 </div>
             </div>
-            <div class="modal-footer border-0 pt-0">
-                <span class="me-auto small text-muted">
+            <div class="modal-footer">
+                <span class="mr-auto small text-muted">
                     선택: <strong id="selected-branch-label" class="text-primary">-</strong>
                 </span>
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
-                <button type="button" class="btn btn-primary btn-sm" id="btn-confirm-deploy" onclick="submitDeploy()">
-                    <i class="bi bi-play-fill me-1"></i>배포 시작
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="submitDeploy()">
+                    <i class="fas fa-play fa-sm mr-1"></i>배포 시작
                 </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 배포 제출용 hidden form -->
 <form id="deploy-form" method="post" style="display:none">
     <input type="hidden" name="branch" id="deploy-branch-input">
 </form>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/vendor/jquery/jquery.min.js"></script>
+<script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
+<script src="/js/sb-admin-2.min.js"></script>
 <script>
     let currentProjectId = null;
     let selectedBranch = null;
-    const modal = new bootstrap.Modal(document.getElementById('deployModal'));
 
     function openDeployModal(projectId, projectName, defaultBranch) {
         currentProjectId = projectId;
@@ -171,13 +262,10 @@
         document.getElementById('branch-list-area').style.display = 'none';
         document.getElementById('branch-manual-area').style.display = 'none';
 
-        modal.show();
+        $('#deployModal').modal('show');
 
         fetch('/api/projects/' + projectId + '/branches')
-            .then(r => {
-                if (!r.ok) throw new Error('API 오류: ' + r.status);
-                return r.json();
-            })
+            .then(r => { if (!r.ok) throw new Error(); return r.json(); })
             .then(branches => renderBranches(branches, defaultBranch))
             .catch(() => showManualInput(defaultBranch));
     }
@@ -185,17 +273,16 @@
     function renderBranches(branches, defaultBranch) {
         const area = document.getElementById('branch-list-area');
         area.innerHTML = '';
-
         branches.forEach(b => {
+            const isDefault = b === defaultBranch;
             const div = document.createElement('div');
-            div.className = 'branch-item d-flex align-items-center gap-2' + (b === defaultBranch ? ' selected' : '');
+            div.className = 'branch-item d-flex align-items-center' + (isDefault ? ' selected' : '');
             div.dataset.branch = b;
-            div.innerHTML = `<i class="bi bi-git text-muted"></i><span>${escapeHtml(b)}</span>`
-                + (b === defaultBranch ? '<span class="badge bg-primary ms-auto" style="font-size:.7rem">기본</span>' : '');
+            div.innerHTML = `<i class="fas fa-code-branch text-muted mr-2 fa-sm"></i><span>${escapeHtml(b)}</span>`
+                + (isDefault ? '<span class="badge badge-primary ml-auto" style="font-size:.7rem">기본</span>' : '');
             div.onclick = () => selectBranch(b);
             area.appendChild(div);
         });
-
         document.getElementById('branch-loading').style.display = 'none';
         area.style.display = 'block';
         selectBranch(defaultBranch);
@@ -221,12 +308,10 @@
     }
 
     function submitDeploy() {
-        const branch = selectedBranch
-            || document.getElementById('branch-manual-input').value
-            || 'main';
+        const branch = selectedBranch || document.getElementById('branch-manual-input').value || 'main';
         document.getElementById('deploy-form').action = '/projects/' + currentProjectId + '/deploy';
         document.getElementById('deploy-branch-input').value = branch;
-        modal.hide();
+        $('#deployModal').modal('hide');
         document.getElementById('deploy-form').submit();
     }
 

@@ -1,148 +1,231 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title th:text="'빌드 #' + ${build.id} + ' - ' + ${project.name}">빌드 로그</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet">
+    <link href="/css/sb-admin-2.min.css" rel="stylesheet">
+    <link href="/css/custom.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .navbar { background-color: #1a1a2e; }
         #log-terminal {
             background: #0d1117;
             color: #c9d1d9;
             font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
             font-size: 13px;
             line-height: 1.6;
-            padding: 1rem 1.25rem;
-            border-radius: 8px;
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 0 .35rem .35rem;
             min-height: 500px;
-            max-height: 70vh;
+            max-height: 68vh;
             overflow-y: auto;
             white-space: pre-wrap;
             word-break: break-all;
         }
-        .log-line { display: block; }
-        .log-line:hover { background: rgba(255,255,255,.04); }
-        .log-step    { color: #58a6ff; font-weight: bold; }
-        .log-deploy  { color: #3fb950; }
-        .log-warn    { color: #d29922; }
-        .log-error   { color: #f85149; }
-        .log-success { color: #3fb950; font-weight: bold; }
-        .log-failed  { color: #f85149; font-weight: bold; }
-        .status-badge-PENDING   { background:#6c757d; }
-        .status-badge-BUILDING  { background:#0d6efd; animation:pulse 1.2s infinite; }
-        .status-badge-DEPLOYING { background:#6f42c1; animation:pulse 1.2s infinite; }
-        .status-badge-SUCCESS   { background:#198754; }
-        .status-badge-FAILED    { background:#dc3545; }
-        .status-badge-CANCELLED { background:#fd7e14; }
-        .log-cancelled { color: #fd7e14; font-weight: bold; }
-        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
+        .log-line          { display: block; }
+        .log-line:hover    { background: rgba(255,255,255,.04); border-radius: 3px; }
+        .log-step          { color: #58a6ff; font-weight: bold; }
+        .log-deploy        { color: #3fb950; }
+        .log-warn          { color: #d29922; }
+        .log-error         { color: #f85149; }
+        .log-success       { color: #3fb950; font-weight: bold; }
+        .log-failed        { color: #f85149; font-weight: bold; }
+        .log-cancelled     { color: #fd7e14; font-weight: bold; }
+        .status-badge-PENDING   { background: #858796; color: #fff; }
+        .status-badge-BUILDING  { background: #4e73df; color: #fff; animation: badge-pulse 1.2s infinite; }
+        .status-badge-DEPLOYING { background: #36b9cc; color: #fff; animation: badge-pulse 1.2s infinite; }
+        .status-badge-SUCCESS   { background: #1cc88a; color: #fff; }
+        .status-badge-FAILED    { background: #e74a3b; color: #fff; }
+        .status-badge-CANCELLED { background: #f6c23e; color: #fff; }
+        @keyframes badge-pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        .log-card-header {
+            background: #1a1a2e;
+            border-radius: .35rem .35rem 0 0;
+            padding: .75rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .log-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
     </style>
 </head>
-<body>
-<nav class="navbar navbar-dark px-4 py-2">
-    <a class="navbar-brand fw-bold" href="/"><i class="bi bi-rocket-takeoff me-2"></i>CI/CD Dashboard</a>
-</nav>
+<body id="page-top">
 
-<div class="container py-4">
-    <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-        <a th:href="@{/projects/{id}(id=${project.id})}" class="text-muted text-decoration-none">
-            <i class="bi bi-chevron-left"></i>
+<div id="wrapper">
+
+    <!-- Sidebar -->
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+        <a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
+            <div class="sidebar-brand-icon">
+                <i class="fas fa-rocket"></i>
+            </div>
+            <div class="sidebar-brand-text mx-3">CI/CD Pipeline</div>
         </a>
-        <span th:text="${project.name}" class="fw-bold fs-5"></span>
-        <span class="text-muted">/</span>
-        <span class="text-muted">빌드 #<span th:text="${build.id}"></span></span>
-        <span id="status-badge" class="badge rounded-pill ms-1"
-              th:classappend="'status-badge-' + ${build.status}"
-              th:text="${build.status}">상태</span>
-        <div class="ms-auto d-flex gap-2 align-items-center">
-            <span id="elapsed" class="text-muted small"></span>
-            <button id="btn-cancel" class="btn btn-sm btn-danger" onclick="requestCancel()" style="display:none">
-                <i class="bi bi-stop-fill me-1"></i>배포 중단
-            </button>
-            <button id="btn-scroll" class="btn btn-sm btn-outline-secondary" onclick="toggleAutoScroll()">
-                <i class="bi bi-arrow-down-circle me-1"></i>자동 스크롤 ON
-            </button>
+        <hr class="sidebar-divider my-0">
+        <li class="nav-item active">
+            <a class="nav-link" href="/">
+                <i class="fas fa-fw fa-th-large"></i>
+                <span>대시보드</span>
+            </a>
+        </li>
+        <hr class="sidebar-divider">
+        <div class="sidebar-heading">관리</div>
+        <li class="nav-item">
+            <a class="nav-link" href="/projects/new">
+                <i class="fas fa-fw fa-plus-circle"></i>
+                <span>새 프로젝트</span>
+            </a>
+        </li>
+        <hr class="sidebar-divider d-none d-md-block">
+        <div class="text-center d-none d-md-inline">
+            <button class="rounded-circle border-0" id="sidebarToggle"></button>
         </div>
-    </div>
+    </ul>
 
-    <div id="log-terminal"></div>
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
 
-    <div class="mt-3 d-flex gap-2 flex-wrap" id="bottom-actions">
-        <form th:action="@{/projects/{id}/deploy(id=${project.id})}" method="post"
-              th:if="${build.status.name() == 'SUCCESS' or build.status.name() == 'FAILED' or build.status.name() == 'CANCELLED'}"
-              id="redeploy-form" style="display:none">
-            <button type="submit" class="btn btn-primary btn-sm"
-                    onclick="return confirm('다시 배포하시겠습니까?')">
-                <i class="bi bi-arrow-clockwise me-1"></i>재배포
-            </button>
-        </form>
-        <a th:href="@{/projects/{id}(id=${project.id})}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-list-ul me-1"></i>빌드 목록
-        </a>
+            <!-- Topbar -->
+            <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+                <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                    <i class="fa fa-bars"></i>
+                </button>
+                <ol class="breadcrumb mb-0 bg-transparent">
+                    <li class="breadcrumb-item"><a href="/" class="text-primary">대시보드</a></li>
+                    <li class="breadcrumb-item">
+                        <a th:href="@{/projects/{id}(id=${project.id})}"
+                           th:text="${project.name}" class="text-primary"></a>
+                    </li>
+                    <li class="breadcrumb-item active">빌드 #<span th:text="${build.id}"></span></li>
+                </ol>
+            </nav>
+
+            <!-- Page Content -->
+            <div class="container-fluid">
+
+                <!-- Page Heading -->
+                <div class="d-sm-flex align-items-center justify-content-between mb-4 flex-wrap">
+                    <div class="d-flex align-items-center mb-2 mb-sm-0">
+                        <a th:href="@{/projects/{id}(id=${project.id})}"
+                           class="btn btn-link p-0 mr-2 text-gray-400">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                        <h1 class="h4 mb-0 text-gray-800 mr-2" th:text="${project.name}"></h1>
+                        <span class="text-muted mr-2">/</span>
+                        <span class="text-gray-600 mr-2">빌드 #<span th:text="${build.id}"></span></span>
+                        <span id="status-badge" class="badge"
+                              th:classappend="'status-badge-' + ${build.status}"
+                              th:text="${build.status}">상태</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span id="elapsed" class="text-muted small font-monospace mr-3"></span>
+                        <button id="btn-cancel"
+                                class="btn btn-danger btn-sm mr-2"
+                                style="display:none"
+                                onclick="requestCancel()">
+                            <i class="fas fa-stop fa-sm mr-1"></i>배포 중단
+                        </button>
+                        <button id="btn-scroll"
+                                class="btn btn-outline-secondary btn-sm"
+                                onclick="toggleAutoScroll()">
+                            <i class="fas fa-arrow-circle-down fa-sm mr-1"></i>자동 스크롤 ON
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 로그 터미널 카드 -->
+                <div class="card shadow mb-4">
+                    <div class="log-card-header">
+                        <div class="d-flex align-items-center">
+                            <span class="log-dot mr-1" style="background:#ff5f56"></span>
+                            <span class="log-dot mr-1" style="background:#ffbd2e"></span>
+                            <span class="log-dot mr-2" style="background:#27c93f"></span>
+                            <span class="text-white-50 small font-monospace">
+                                <i class="fas fa-terminal mr-1"></i>
+                                build-<span th:text="${build.id}"></span>.log
+                            </span>
+                        </div>
+                        <span class="text-white-50 small" th:if="${build.finishedAt != null}"
+                              th:text="'완료: ' + ${#temporals.format(build.finishedAt, 'MM/dd HH:mm:ss')}"></span>
+                    </div>
+                    <div id="log-terminal"></div>
+                </div>
+
+                <!-- 하단 액션 -->
+                <div class="d-flex mb-4">
+                    <a th:href="@{/projects/{id}(id=${project.id})}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-list fa-sm mr-1"></i>빌드 목록
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+        <footer class="sticky-footer bg-white">
+            <div class="container my-auto">
+                <div class="copyright text-center my-auto">
+                    <span>CI/CD Pipeline &copy; 2026</span>
+                </div>
+            </div>
+        </footer>
     </div>
 </div>
 
+<a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
+
+<script src="/vendor/jquery/jquery.min.js"></script>
+<script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
+<script src="/js/sb-admin-2.min.js"></script>
 <script>
-    const buildId = [[${build.id}]];
+    const buildId       = [[${build.id}]];
     const initialStatus = '[[${build.status}]]';
-    const projectId = [[${project.id}]];
+    const projectId     = [[${project.id}]];
 
-    const terminal      = document.getElementById('log-terminal');
-    const statusBadge   = document.getElementById('status-badge');
-    const elapsedEl     = document.getElementById('elapsed');
-    const btnCancel     = document.getElementById('btn-cancel');
-    const redeployForm  = document.getElementById('redeploy-form');
+    const terminal    = document.getElementById('log-terminal');
+    const statusBadge = document.getElementById('status-badge');
+    const elapsedEl   = document.getElementById('elapsed');
+    const btnCancel   = document.getElementById('btn-cancel');
 
-    let autoScroll = true;
-    let startTime  = Date.now();
+    let autoScroll   = true;
+    let startTime    = Date.now();
     let elapsedTimer = null;
 
-    // ── 자동 스크롤 토글 ──────────────────────────────────
     function toggleAutoScroll() {
         autoScroll = !autoScroll;
         const btn = document.getElementById('btn-scroll');
-        btn.innerHTML = autoScroll
-            ? '<i class="bi bi-arrow-down-circle me-1"></i>자동 스크롤 ON'
-            : '<i class="bi bi-pause-circle me-1"></i>자동 스크롤 OFF';
-        btn.className = autoScroll ? 'btn btn-sm btn-outline-secondary' : 'btn btn-sm btn-secondary';
+        if (autoScroll) {
+            btn.innerHTML = '<i class="fas fa-arrow-circle-down fa-sm mr-1"></i>자동 스크롤 ON';
+            btn.className = 'btn btn-outline-secondary btn-sm';
+        } else {
+            btn.innerHTML = '<i class="fas fa-pause-circle fa-sm mr-1"></i>자동 스크롤 OFF';
+            btn.className = 'btn btn-secondary btn-sm';
+        }
     }
 
-    // ── 로그 라인 출력 ────────────────────────────────────
     function appendLine(text) {
         const span = document.createElement('span');
         span.className = 'log-line';
-        if (text.startsWith('[STEP') || text.startsWith('===')) {
-            span.classList.add('log-step');
-        } else if (text.startsWith('[DEPLOY]')) {
-            span.classList.add('log-deploy');
-        } else if (text.startsWith('[WARN]')) {
-            span.classList.add('log-warn');
-        } else if (text.includes('BUILD CANCELLED')) {
-            span.classList.add('log-cancelled');
-        } else if (text.includes('BUILD FAILED') || text.startsWith('[ERROR]')) {
-            span.classList.add('log-error');
-        } else if (text.includes('BUILD SUCCESS')) {
-            span.classList.add('log-success');
-        }
+        if      (text.startsWith('[STEP') || text.startsWith('===')) span.classList.add('log-step');
+        else if (text.startsWith('[DEPLOY]'))                        span.classList.add('log-deploy');
+        else if (text.startsWith('[WARN]'))                          span.classList.add('log-warn');
+        else if (text.includes('BUILD CANCELLED'))                   span.classList.add('log-cancelled');
+        else if (text.includes('BUILD FAILED') || text.startsWith('[ERROR]')) span.classList.add('log-error');
+        else if (text.includes('BUILD SUCCESS'))                     span.classList.add('log-success');
         span.textContent = text;
         terminal.appendChild(span);
         if (autoScroll) terminal.scrollTop = terminal.scrollHeight;
     }
 
-    // ── 상태 배지 + 하단 버튼 갱신 ────────────────────────
     function onBuildFinished(status) {
         statusBadge.textContent = status;
-        statusBadge.className = 'badge rounded-pill ms-1 status-badge-' + status;
+        statusBadge.className = 'badge status-badge-' + status;
         btnCancel.style.display = 'none';
-        if (['SUCCESS', 'FAILED', 'CANCELLED'].includes(status) && redeployForm) {
-            redeployForm.style.display = 'inline-block';
-        }
     }
 
-    // ── 경과 시간 타이머 ──────────────────────────────────
     function startElapsedTimer() {
         elapsedTimer = setInterval(() => {
             elapsedEl.textContent = Math.floor((Date.now() - startTime) / 1000) + 's';
@@ -152,21 +235,19 @@
         if (elapsedTimer) clearInterval(elapsedTimer);
     }
 
-    // ── 배포 중단 요청 ────────────────────────────────────
     function requestCancel() {
         if (!confirm('정말 배포를 중단하시겠습니까?')) return;
         btnCancel.disabled = true;
-        btnCancel.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>중단 중...';
+        btnCancel.innerHTML = '<span class="spinner-border spinner-border-sm mr-1" role="status"></span>중단 중...';
         fetch('/builds/' + buildId + '/cancel', { method: 'POST' })
             .then(r => r.json())
             .then(() => appendLine('[INFO] 중단 요청을 전송했습니다.'))
             .catch(() => {
                 btnCancel.disabled = false;
-                btnCancel.innerHTML = '<i class="bi bi-stop-fill me-1"></i>배포 중단';
+                btnCancel.innerHTML = '<i class="fas fa-stop fa-sm mr-1"></i>배포 중단';
             });
     }
 
-    // ── 진입 분기 ─────────────────────────────────────────
     const isRunning = ['PENDING', 'BUILDING', 'DEPLOYING'].includes(initialStatus);
 
     if (isRunning) {
@@ -174,7 +255,7 @@
         startElapsedTimer();
 
         const evtSource = new EventSource('/builds/' + buildId + '/logs/stream');
-        evtSource.addEventListener('log', e => appendLine(e.data));
+        evtSource.addEventListener('log',  e => appendLine(e.data));
         evtSource.addEventListener('done', () => {
             stopElapsedTimer();
             evtSource.close();
@@ -189,7 +270,6 @@
             btnCancel.style.display = 'none';
         };
     } else {
-        // 이미 완료된 빌드
         fetch('/api/builds/' + buildId + '/logs')
             .then(r => r.json())
             .then(data => {
@@ -198,6 +278,5 @@
             });
     }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

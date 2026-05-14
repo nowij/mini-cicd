@@ -5,6 +5,7 @@ import com.cicd.model.enums.DeployOs;
 import com.cicd.model.enums.ProjectType;
 import com.cicd.repository.BuildRepository;
 import com.cicd.repository.ProjectRepository;
+import com.cicd.service.DeployService;
 import com.cicd.service.ScriptService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class ProjectController {
     private final ProjectRepository projectRepository;
     private final BuildRepository buildRepository;
     private final ScriptService scriptService;
+    private final DeployService deployService;
 
     @GetMapping("/")
     public String dashboard(Model model) {
@@ -139,6 +141,19 @@ public class ProjectController {
         projectRepository.deleteById(id);
         redirectAttributes.addFlashAttribute("successMessage", "프로젝트가 삭제되었습니다.");
         return "redirect:/";
+    }
+
+    @PostMapping("/projects/{id}/stop")
+    public String stopApp(@PathVariable Long id, RedirectAttributes redirectAttributes) {
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("프로젝트를 찾을 수 없습니다: " + id));
+        try {
+            deployService.stopApp(project);
+            redirectAttributes.addFlashAttribute("successMessage", "앱 종료 명령을 실행했습니다.");
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "앱 종료 실패: " + e.getMessage());
+        }
+        return "redirect:/projects/" + id;
     }
 
     @PostMapping("/projects/{id}/script/delete")

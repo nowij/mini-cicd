@@ -39,6 +39,10 @@ public class LogService {
     }
 
     public void append(Long buildId, String line) {
+        if (buildId == null) {
+            log.debug("[NOLOG] {}", line);
+            return;
+        }
         // 파일에 기록
         try (var writer = new FileWriter(getLogPath(buildId).toFile(), true);
              var bw = new BufferedWriter(writer)) {

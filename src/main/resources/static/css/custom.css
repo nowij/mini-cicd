@@ -1,0 +1,26 @@
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('/fonts/GmarketSansTTFLight.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('/fonts/GmarketSansTTFMedium.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'GmarketSans';
+    src: url('/fonts/GmarketSansTTFBold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+}
+
+body, h1, h2, h3, h4, h5, h6,
+.navbar, .sidebar, .card, .btn,
+.form-control, .custom-select,
+.breadcrumb, .badge, .table,
+.modal, .alert {
+    font-family: 'GmarketSans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif !important;
+}
