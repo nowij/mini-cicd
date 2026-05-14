@@ -3,8 +3,6 @@
     font-style: normal;
     font-weight: 300;
     src: local('NanumSquareRoundL'),
-         url('/fonts/nanumsquareround/NanumSquareRoundL.woff2') format('woff2'),
-         url('/fonts/nanumsquareround/NanumSquareRoundL.woff') format('woff'),
          url('/fonts/nanumsquareround/NanumSquareRoundL.ttf') format('truetype');
 }
 @font-face {
@@ -12,8 +10,6 @@
     font-style: normal;
     font-weight: 400;
     src: local('NanumSquareRoundR'),
-         url('/fonts/nanumsquareround/NanumSquareRoundR.woff2') format('woff2'),
-         url('/fonts/nanumsquareround/NanumSquareRoundR.woff') format('woff'),
          url('/fonts/nanumsquareround/NanumSquareRoundR.ttf') format('truetype');
 }
 @font-face {
@@ -21,8 +17,6 @@
     font-style: normal;
     font-weight: 700;
     src: local('NanumSquareRoundB'),
-         url('/fonts/nanumsquareround/NanumSquareRoundB.woff2') format('woff2'),
-         url('/fonts/nanumsquareround/NanumSquareRoundB.woff') format('woff'),
          url('/fonts/nanumsquareround/NanumSquareRoundB.ttf') format('truetype');
 }
 @font-face {
@@ -30,8 +24,6 @@
     font-style: normal;
     font-weight: 800;
     src: local('NanumSquareRoundEB'),
-         url('/fonts/nanumsquareround/NanumSquareRoundEB.woff2') format('woff2'),
-         url('/fonts/nanumsquareround/NanumSquareRoundEB.woff') format('woff'),
          url('/fonts/nanumsquareround/NanumSquareRoundEB.ttf') format('truetype');
 }
 
