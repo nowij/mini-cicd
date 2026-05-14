@@ -67,25 +67,67 @@ public class DeployService {
     private Session connectSsh(Project project, Long buildId) throws Exception {
         JSch jsch = new JSch();
 
-        if (hasValue(project.getDeployKeyPath())) {
+        boolean useKey = hasValue(project.getDeployKeyPath());
+        boolean usePassword = hasValue(project.getDeployPassword());
+
+        if (useKey) {
             jsch.addIdentity(project.getDeployKeyPath());
-            logService.append(buildId, "[DEPLOY] SSH 키 인증 사용: " + project.getDeployKeyPath());
+            logService.append(buildId, "[DEPLOY] SSH 키 인증: " + project.getDeployKeyPath());
+        } else if (usePassword) {
+            logService.append(buildId, "[DEPLOY] SSH 비밀번호 인증");
+        } else {
+            throw new RuntimeException("SSH 인증 정보가 없습니다. 비밀번호 또는 SSH 키 파일 경로를 입력하세요.");
         }
 
         int port = project.getDeployPort() != null ? project.getDeployPort() : 22;
         Session session = jsch.getSession(project.getDeployUser(), project.getDeployHost(), port);
 
-        if (hasValue(project.getDeployPassword())) {
-            session.setPassword(project.getDeployPassword());
-        }
-
         Properties config = new Properties();
         config.put("StrictHostKeyChecking", "no");
-        session.setConfig(config);
-        session.connect(30_000);
 
-        logService.append(buildId, "[DEPLOY] SSH 연결 성공: " + project.getDeployUser() + "@" + project.getDeployHost() + ":" + port);
+        if (useKey) {
+            config.put("PreferredAuthentications", "publickey");
+        } else {
+            // password + keyboard-interactive 모두 시도
+            // keyboard-interactive는 UserInfo.getPassword()를 통해 비밀번호를 제공
+            config.put("PreferredAuthentications", "password,keyboard-interactive");
+            final String pwd = project.getDeployPassword();
+            session.setPassword(pwd);
+            session.setUserInfo(new UserInfo() {
+                @Override public String getPassword()          { return pwd; }
+                @Override public boolean promptPassword(String msg)    { return true; }
+                @Override public String getPassphrase()        { return null; }
+                @Override public boolean promptPassphrase(String msg)  { return false; }
+                @Override public boolean promptYesNo(String msg)       { return true; }
+                @Override public void showMessage(String msg)          {}
+            });
+        }
+
+        session.setConfig(config);
+
+        try {
+            session.connect(30_000);
+        } catch (JSchException e) {
+            String hint = buildAuthErrorHint(project);
+            throw new RuntimeException("SSH 인증 실패 (" + project.getDeployUser() + "@"
+                    + project.getDeployHost() + ":" + port + ")\n" + hint, e);
+        }
+
+        logService.append(buildId, "[DEPLOY] SSH 연결 성공: "
+                + project.getDeployUser() + "@" + project.getDeployHost() + ":" + port);
         return session;
+    }
+
+    private String buildAuthErrorHint(Project project) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("인증 실패 체크리스트:\n");
+        sb.append("  1. 사용자명·비밀번호가 맞는지 확인\n");
+        sb.append("  2. SSH 서버에서 비밀번호 인증이 허용되어 있는지 확인\n");
+        sb.append("     - Linux: /etc/ssh/sshd_config → PasswordAuthentication yes\n");
+        sb.append("     - Mac  : 시스템 설정 → 공유 → 원격 로그인 ON\n");
+        sb.append("     - Win  : OpenSSH 서버 서비스 실행 확인\n");
+        sb.append("  3. 비밀번호 대신 SSH 키 인증을 사용하면 더 안정적입니다.");
+        return sb.toString();
     }
 
     private void runRemoteCommand(Session session, String command, Long buildId, boolean ignoreError) throws Exception {

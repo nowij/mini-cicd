@@ -36,6 +36,8 @@
         .status-badge-DEPLOYING { background:#6f42c1; animation:pulse 1.2s infinite; }
         .status-badge-SUCCESS   { background:#198754; }
         .status-badge-FAILED    { background:#dc3545; }
+        .status-badge-CANCELLED { background:#fd7e14; }
+        .log-cancelled { color: #fd7e14; font-weight: bold; }
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.5} }
     </style>
 </head>
@@ -57,6 +59,9 @@
               th:text="${build.status}">상태</span>
         <div class="ms-auto d-flex gap-2 align-items-center">
             <span id="elapsed" class="text-muted small"></span>
+            <button id="btn-cancel" class="btn btn-sm btn-danger" onclick="requestCancel()" style="display:none">
+                <i class="bi bi-stop-fill me-1"></i>배포 중단
+            </button>
             <button id="btn-scroll" class="btn btn-sm btn-outline-secondary" onclick="toggleAutoScroll()">
                 <i class="bi bi-arrow-down-circle me-1"></i>자동 스크롤 ON
             </button>
@@ -65,16 +70,10 @@
 
     <div id="log-terminal"></div>
 
-    <div class="mt-3 d-flex gap-2 flex-wrap">
-        <a th:href="@{/projects/{id}/deploy(id=${project.id})}"
-           th:if="${build.status.name() == 'SUCCESS' or build.status.name() == 'FAILED'}"
-           class="btn btn-primary btn-sm"
-           onclick="return confirm('다시 배포하시겠습니까?')"
-           th:attr="href='/projects/' + ${project.id} + '/deploy'"
-           th:data-method="post">
-        </a>
+    <div class="mt-3 d-flex gap-2 flex-wrap" id="bottom-actions">
         <form th:action="@{/projects/{id}/deploy(id=${project.id})}" method="post"
-              th:if="${build.status.name() == 'SUCCESS' or build.status.name() == 'FAILED'}">
+              th:if="${build.status.name() == 'SUCCESS' or build.status.name() == 'FAILED' or build.status.name() == 'CANCELLED'}"
+              id="redeploy-form" style="display:none">
             <button type="submit" class="btn btn-primary btn-sm"
                     onclick="return confirm('다시 배포하시겠습니까?')">
                 <i class="bi bi-arrow-clockwise me-1"></i>재배포
@@ -89,101 +88,113 @@
 <script>
     const buildId = [[${build.id}]];
     const initialStatus = '[[${build.status}]]';
+    const projectId = [[${project.id}]];
 
-    const terminal = document.getElementById('log-terminal');
-    const statusBadge = document.getElementById('status-badge');
-    const elapsedEl = document.getElementById('elapsed');
+    const terminal      = document.getElementById('log-terminal');
+    const statusBadge   = document.getElementById('status-badge');
+    const elapsedEl     = document.getElementById('elapsed');
+    const btnCancel     = document.getElementById('btn-cancel');
+    const redeployForm  = document.getElementById('redeploy-form');
 
     let autoScroll = true;
-    let startTime = Date.now();
+    let startTime  = Date.now();
     let elapsedTimer = null;
 
+    // ── 자동 스크롤 토글 ──────────────────────────────────
     function toggleAutoScroll() {
         autoScroll = !autoScroll;
         const btn = document.getElementById('btn-scroll');
         btn.innerHTML = autoScroll
             ? '<i class="bi bi-arrow-down-circle me-1"></i>자동 스크롤 ON'
             : '<i class="bi bi-pause-circle me-1"></i>자동 스크롤 OFF';
-        btn.className = autoScroll
-            ? 'btn btn-sm btn-outline-secondary'
-            : 'btn btn-sm btn-secondary';
+        btn.className = autoScroll ? 'btn btn-sm btn-outline-secondary' : 'btn btn-sm btn-secondary';
     }
 
+    // ── 로그 라인 출력 ────────────────────────────────────
     function appendLine(text) {
         const span = document.createElement('span');
         span.className = 'log-line';
-
-        // 라인 색상 분류
         if (text.startsWith('[STEP') || text.startsWith('===')) {
             span.classList.add('log-step');
         } else if (text.startsWith('[DEPLOY]')) {
             span.classList.add('log-deploy');
         } else if (text.startsWith('[WARN]')) {
             span.classList.add('log-warn');
-        } else if (text.includes('ERROR') || text.includes('error') || text.startsWith('[ERROR]')) {
+        } else if (text.includes('BUILD CANCELLED')) {
+            span.classList.add('log-cancelled');
+        } else if (text.includes('BUILD FAILED') || text.startsWith('[ERROR]')) {
             span.classList.add('log-error');
         } else if (text.includes('BUILD SUCCESS')) {
             span.classList.add('log-success');
-        } else if (text.includes('BUILD FAILED')) {
-            span.classList.add('log-failed');
         }
-
         span.textContent = text;
         terminal.appendChild(span);
+        if (autoScroll) terminal.scrollTop = terminal.scrollHeight;
+    }
 
-        if (autoScroll) {
-            terminal.scrollTop = terminal.scrollHeight;
+    // ── 상태 배지 + 하단 버튼 갱신 ────────────────────────
+    function onBuildFinished(status) {
+        statusBadge.textContent = status;
+        statusBadge.className = 'badge rounded-pill ms-1 status-badge-' + status;
+        btnCancel.style.display = 'none';
+        if (['SUCCESS', 'FAILED', 'CANCELLED'].includes(status) && redeployForm) {
+            redeployForm.style.display = 'inline-block';
         }
     }
 
-    function updateStatus(status) {
-        statusBadge.textContent = status;
-        statusBadge.className = 'badge rounded-pill ms-1 status-badge-' + status;
-    }
-
+    // ── 경과 시간 타이머 ──────────────────────────────────
     function startElapsedTimer() {
         elapsedTimer = setInterval(() => {
-            const s = Math.floor((Date.now() - startTime) / 1000);
-            elapsedEl.textContent = s + 's';
+            elapsedEl.textContent = Math.floor((Date.now() - startTime) / 1000) + 's';
         }, 1000);
     }
-
     function stopElapsedTimer() {
         if (elapsedTimer) clearInterval(elapsedTimer);
     }
 
-    const isRunning = initialStatus === 'PENDING' || initialStatus === 'BUILDING' || initialStatus === 'DEPLOYING';
+    // ── 배포 중단 요청 ────────────────────────────────────
+    function requestCancel() {
+        if (!confirm('정말 배포를 중단하시겠습니까?')) return;
+        btnCancel.disabled = true;
+        btnCancel.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>중단 중...';
+        fetch('/builds/' + buildId + '/cancel', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => appendLine('[INFO] 중단 요청을 전송했습니다.'))
+            .catch(() => {
+                btnCancel.disabled = false;
+                btnCancel.innerHTML = '<i class="bi bi-stop-fill me-1"></i>배포 중단';
+            });
+    }
+
+    // ── 진입 분기 ─────────────────────────────────────────
+    const isRunning = ['PENDING', 'BUILDING', 'DEPLOYING'].includes(initialStatus);
 
     if (isRunning) {
-        // 실시간 스트리밍
+        btnCancel.style.display = 'inline-block';
         startElapsedTimer();
+
         const evtSource = new EventSource('/builds/' + buildId + '/logs/stream');
-
-        evtSource.addEventListener('log', (e) => {
-            appendLine(e.data);
-        });
-
+        evtSource.addEventListener('log', e => appendLine(e.data));
         evtSource.addEventListener('done', () => {
             stopElapsedTimer();
             evtSource.close();
-            // 최종 상태 조회
             fetch('/api/builds/' + buildId + '/logs')
                 .then(r => r.json())
-                .then(data => updateStatus(data.status));
+                .then(data => onBuildFinished(data.status));
         });
-
         evtSource.onerror = () => {
             stopElapsedTimer();
             evtSource.close();
             appendLine('[연결 종료]');
+            btnCancel.style.display = 'none';
         };
     } else {
-        // 이미 완료된 빌드: API로 로그 로드
+        // 이미 완료된 빌드
         fetch('/api/builds/' + buildId + '/logs')
             .then(r => r.json())
             .then(data => {
                 data.lines.forEach(line => appendLine(line));
-                updateStatus(data.status);
+                onBuildFinished(data.status);
             });
     }
 </script>

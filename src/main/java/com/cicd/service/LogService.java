@@ -48,8 +48,10 @@ public class LogService {
             log.warn("Failed to write log for build {}", buildId, e);
         }
 
-        // 연결된 SSE 클라이언트에 전송
-        List<SseEmitter> list = emitters.getOrDefault(buildId, List.of());
+        // 연결된 SSE 클라이언트에 전송 (없으면 skip)
+        List<SseEmitter> list = emitters.get(buildId);
+        if (list == null || list.isEmpty()) return;
+
         List<SseEmitter> dead = new ArrayList<>();
         for (SseEmitter emitter : list) {
             try {
@@ -58,7 +60,7 @@ public class LogService {
                 dead.add(emitter);
             }
         }
-        list.removeAll(dead);
+        if (!dead.isEmpty()) list.removeAll(dead);
     }
 
     public void complete(Long buildId) {

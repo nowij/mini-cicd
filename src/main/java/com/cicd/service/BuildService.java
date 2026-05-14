@@ -18,6 +18,7 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -31,6 +32,11 @@ public class BuildService {
 
     @Value("${cicd.workspace:./workspace}")
     private String workspaceDir;
+
+    // 빌드 ID → 현재 실행 중인 OS 프로세스
+    private final ConcurrentHashMap<Long, Process> activeProcesses = new ConcurrentHashMap<>();
+    // 빌드 ID → 중단 요청 여부
+    private final ConcurrentHashMap<Long, Boolean> cancelFlags = new ConcurrentHashMap<>();
 
     /**
      * 빌드 레코드를 생성하고 비동기로 빌드를 실행합니다.
@@ -61,7 +67,10 @@ public class BuildService {
     @Async("buildExecutor")
     public void runBuild(Long buildId) {
         Build build = buildRepository.findById(buildId).orElseThrow();
-        Project project = build.getProject();
+        // @Async는 별도 스레드에서 실행되므로 기존 세션이 닫혀 있음.
+        // build.getProject()의 lazy proxy를 초기화하려면 새 세션에서 직접 조회해야 함.
+        // Hibernate proxy는 getId()만 세션 없이 안전하게 호출 가능.
+        Project project = projectRepository.findById(build.getProject().getId()).orElseThrow();
 
         logService.init(buildId);
         logService.append(buildId, "========================================");
@@ -101,17 +110,27 @@ public class BuildService {
             logService.append(buildId, "========================================");
 
         } catch (Exception e) {
-            log.error("Build {} failed", buildId, e);
-            build.setStatus(BuildStatus.FAILED);
-            build.setErrorMessage(truncate(e.getMessage(), 1000));
-            logService.append(buildId, "\n========================================");
-            logService.append(buildId, "  BUILD FAILED: " + e.getMessage());
-            logService.append(buildId, "========================================");
+            if (cancelFlags.getOrDefault(buildId, false)) {
+                log.info("Build {} cancelled", buildId);
+                build.setStatus(BuildStatus.CANCELLED);
+                logService.append(buildId, "\n========================================");
+                logService.append(buildId, "  BUILD CANCELLED");
+                logService.append(buildId, "========================================");
+            } else {
+                log.error("Build {} failed", buildId, e);
+                build.setStatus(BuildStatus.FAILED);
+                build.setErrorMessage(truncate(e.getMessage(), 1000));
+                logService.append(buildId, "\n========================================");
+                logService.append(buildId, "  BUILD FAILED: " + e.getMessage());
+                logService.append(buildId, "========================================");
+            }
         } finally {
             build.setFinishedAt(LocalDateTime.now());
             buildRepository.save(build);
             logService.complete(buildId);
             cleanupWorkDir(workDir, buildId);
+            activeProcesses.remove(buildId);
+            cancelFlags.remove(buildId);
         }
     }
 
@@ -211,11 +230,17 @@ public class BuildService {
     }
 
     private void executeCommand(List<String> cmd, Path workDir, Long buildId) throws Exception {
+        // 중단 요청이 이미 들어온 경우 새 커맨드를 시작하지 않음
+        if (cancelFlags.getOrDefault(buildId, false)) {
+            throw new RuntimeException("중단 요청으로 명령어 실행 건너뜀");
+        }
+
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.directory(workDir.toFile());
         pb.redirectErrorStream(true);
 
         Process process = pb.start();
+        activeProcesses.put(buildId, process);
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -224,8 +249,29 @@ public class BuildService {
         }
 
         int exitCode = process.waitFor();
+        activeProcesses.remove(buildId);
+
+        if (cancelFlags.getOrDefault(buildId, false)) {
+            throw new RuntimeException("빌드가 중단되었습니다.");
+        }
         if (exitCode != 0) {
             throw new RuntimeException("명령어 실패 (종료 코드: " + exitCode + ")");
+        }
+    }
+
+    /**
+     * 진행 중인 빌드를 강제 중단합니다.
+     */
+    public void cancelBuild(Long buildId) {
+        Build build = buildRepository.findById(buildId).orElseThrow();
+        BuildStatus status = build.getStatus();
+        if (status == BuildStatus.BUILDING || status == BuildStatus.DEPLOYING || status == BuildStatus.PENDING) {
+            cancelFlags.put(buildId, true);
+            Process process = activeProcesses.get(buildId);
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+                log.info("Build {} process destroyed", buildId);
+            }
         }
     }
 

@@ -62,6 +62,20 @@ public class BuildController {
     }
 
     /**
+     * 진행 중인 빌드 중단
+     */
+    @PostMapping("/builds/{buildId}/cancel")
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> cancelBuild(@PathVariable Long buildId) {
+        try {
+            buildService.cancelBuild(buildId);
+            return ResponseEntity.ok(Map.of("result", "ok"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * 완료된 빌드 로그 JSON 반환 (페이지 새로고침용)
      */
     @GetMapping(value = "/api/builds/{buildId}/logs", produces = MediaType.APPLICATION_JSON_VALUE)

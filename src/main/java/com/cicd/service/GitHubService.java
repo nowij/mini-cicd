@@ -30,10 +30,15 @@ public class GitHubService {
             // GitHub API는 기본 30개, per_page=100으로 최대 100개 조회
             String url = "https://api.github.com/repos/" + owner + "/" + repo + "/branches?per_page=100";
 
+            String token = project.getGithubToken();
             List<Map<String, Object>> response = restClient.get()
                     .uri(url)
-                    .header(HttpHeaders.ACCEPT, "application/vnd.github.v3+json")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + project.getGithubToken())
+                    .headers(headers -> {
+                        headers.set(HttpHeaders.ACCEPT, "application/vnd.github.v3+json");
+                        if (token != null && !token.isBlank()) {
+                            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+                        }
+                    })
                     .retrieve()
                     .body(new ParameterizedTypeReference<>() {});
 
