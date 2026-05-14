@@ -1,30 +1,66 @@
 @font-face {
-    font-family: 'GmarketSans';
-    src: url('/fonts/GmarketSansTTFLight.ttf') format('truetype');
+    font-family: 'NanumSquareRound';
+    font-style: normal;
     font-weight: 300;
-    font-style: normal;
+    src: local('NanumSquareRoundL'),
+         url('/fonts/nanumsquareround/NanumSquareRoundL.woff2') format('woff2'),
+         url('/fonts/nanumsquareround/NanumSquareRoundL.woff') format('woff'),
+         url('/fonts/nanumsquareround/NanumSquareRoundL.ttf') format('truetype');
 }
 @font-face {
-    font-family: 'GmarketSans';
-    src: url('/fonts/GmarketSansTTFMedium.ttf') format('truetype');
+    font-family: 'NanumSquareRound';
+    font-style: normal;
     font-weight: 400;
-    font-style: normal;
+    src: local('NanumSquareRoundR'),
+         url('/fonts/nanumsquareround/NanumSquareRoundR.woff2') format('woff2'),
+         url('/fonts/nanumsquareround/NanumSquareRoundR.woff') format('woff'),
+         url('/fonts/nanumsquareround/NanumSquareRoundR.ttf') format('truetype');
 }
 @font-face {
-    font-family: 'GmarketSans';
-    src: url('/fonts/GmarketSansTTFBold.ttf') format('truetype');
-    font-weight: 700;
+    font-family: 'NanumSquareRound';
     font-style: normal;
+    font-weight: 700;
+    src: local('NanumSquareRoundB'),
+         url('/fonts/nanumsquareround/NanumSquareRoundB.woff2') format('woff2'),
+         url('/fonts/nanumsquareround/NanumSquareRoundB.woff') format('woff'),
+         url('/fonts/nanumsquareround/NanumSquareRoundB.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'NanumSquareRound';
+    font-style: normal;
+    font-weight: 800;
+    src: local('NanumSquareRoundEB'),
+         url('/fonts/nanumsquareround/NanumSquareRoundEB.woff2') format('woff2'),
+         url('/fonts/nanumsquareround/NanumSquareRoundEB.woff') format('woff'),
+         url('/fonts/nanumsquareround/NanumSquareRoundEB.ttf') format('truetype');
 }
 
-body, h1, h2, h3, h4, h5, h6,
-.navbar, .sidebar, .card, .btn,
-.form-control, .custom-select,
-.breadcrumb, .badge, .table,
-.modal, .alert {
-    font-family: 'GmarketSans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif !important;
+/* 전체 기본 폰트 (Font Awesome 아이콘 제외) */
+body *:not(.fas):not(.far):not(.fab):not(.fal):not(.fad):not([class^="fa-"]):not([class*=" fa-"]) {
+    font-family: 'NanumSquareRound', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif !important;
+    font-weight: 400;
 }
 
+/* Font Awesome 아이콘 폰트 보호 */
+.fas, .far, .fal, .fad {
+    font-family: 'Font Awesome 5 Free' !important;
+}
+.fab {
+    font-family: 'Font Awesome 5 Brands' !important;
+}
+
+/* 제목, 굵은 텍스트 및 그 하위 요소 */
+h1, h2, h3, h4, h5, h6,
+.h1, .h2, .h3, .h4, .h5, .h6,
+h1 *, h2 *, h3 *, h4 *, h5 *, h6 *,
+strong, b, th,
+.font-weight-bold, .font-weight-bold *,
+.sidebar-brand-text, .sidebar-brand-text *,
+.card-header h6, .card-header h6 * {
+    font-weight: 700 !important;
+}
+
+/* 입력 필드 */
 input, textarea, select,
 .form-control, .custom-select, .custom-file-label {
     font-weight: 300 !important;
