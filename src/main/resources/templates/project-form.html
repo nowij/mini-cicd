@@ -92,19 +92,19 @@
                                 </div>
                                 <div class="card-body compact">
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">프로젝트 이름 <span class="text-danger">*</span></label>
+                                        <label class="font-weight">프로젝트 이름 <span class="text-danger">*</span></label>
                                         <input type="text" class="form-control form-control-xs"
                                                th:field="*{name}" placeholder="My App" required>
                                         <div class="text-danger form-text xs"
                                              th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></div>
                                     </div>
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">설명</label>
+                                        <label class="font-weight">설명</label>
                                         <input type="text" class="form-control form-control-xs"
                                                th:field="*{description}" placeholder="프로젝트 설명 (선택)">
                                     </div>
                                     <div class="form-group xs mb-0">
-                                        <label class="font-weight-bold">프로젝트 타입 <span class="text-danger">*</span></label>
+                                        <label class="font-weight">프로젝트 타입 <span class="text-danger">*</span></label>
                                         <select class="custom-select custom-select-xs"
                                                 th:field="*{projectType}" id="projectType">
                                             <option th:each="type : ${projectTypes}"
@@ -123,7 +123,7 @@
                                 </div>
                                 <div class="card-body compact">
                                     <div class="form-group xs mb-0">
-                                        <label class="font-weight-bold">커스텀 빌드 명령어</label>
+                                        <label class="font-weight">커스텀 빌드 명령어</label>
                                         <input type="text" class="form-control form-control-xs"
                                                th:field="*{buildCommand}"
                                                placeholder="비워두면 타입별 기본값 사용">
@@ -141,25 +141,25 @@
                                 </div>
                                 <div class="card-body compact">
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">저장소 URL <span class="text-danger">*</span></label>
+                                        <label class="font-weight">저장소 URL <span class="text-danger">*</span></label>
                                         <input type="url" class="form-control form-control-xs"
                                                th:field="*{repoUrl}"
                                                placeholder="https://github.com/org/repo.git" required>
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group xs col-6">
-                                            <label class="font-weight-bold">브랜치</label>
+                                            <label class="font-weight">브랜치</label>
                                             <input type="text" class="form-control form-control-xs"
                                                    th:field="*{branch}" placeholder="main">
                                         </div>
                                         <div class="form-group xs col-6">
-                                            <label class="font-weight-bold">서브디렉토리</label>
+                                            <label class="font-weight">서브디렉토리</label>
                                             <input type="text" class="form-control form-control-xs"
                                                    th:field="*{buildSubDir}" placeholder="예: backend">
                                         </div>
                                     </div>
                                     <div class="form-group xs mb-0">
-                                        <label class="font-weight-bold">Personal Access Token</label>
+                                        <label class="font-weight">Personal Access Token</label>
                                         <input type="password" class="form-control form-control-xs"
                                                th:field="*{githubToken}"
                                                placeholder="ghp_xxxx... (Private 저장소)">
@@ -181,26 +181,26 @@
                                     <small class="form-text xs text-muted mb-2 d-block">비워두면 배포 없이 빌드만 수행합니다.</small>
                                     <div class="form-row">
                                         <div class="form-group xs col-8">
-                                            <label class="font-weight-bold">서버 호스트</label>
+                                            <label class="font-weight">서버 호스트</label>
                                             <input type="text" class="form-control form-control-xs"
                                                    th:field="*{deployHost}"
                                                    placeholder="192.168.1.100 또는 example.com">
                                         </div>
                                         <div class="form-group xs col-4">
-                                            <label class="font-weight-bold">포트</label>
+                                            <label class="font-weight">포트</label>
                                             <input type="number" class="form-control form-control-xs"
                                                    th:field="*{deployPort}" value="22">
                                         </div>
                                     </div>
                                     <div class="form-row">
                                         <div class="form-group xs col-7">
-                                            <label class="font-weight-bold">SSH 사용자</label>
+                                            <label class="font-weight">SSH 사용자</label>
                                             <input type="text" class="form-control form-control-xs"
                                                    th:field="*{deployUser}"
                                                    placeholder="ubuntu / root / administrator">
                                         </div>
                                         <div class="form-group xs col-5">
-                                            <label class="font-weight-bold">서버 OS</label>
+                                            <label class="font-weight">서버 OS</label>
                                             <select class="custom-select custom-select-xs" th:field="*{deployOs}">
                                                 <option th:each="os : ${deployOsTypes}"
                                                         th:value="${os}" th:text="${os}">OS</option>
@@ -208,19 +208,19 @@
                                         </div>
                                     </div>
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">SSH 비밀번호</label>
+                                        <label class="font-weight">SSH 비밀번호</label>
                                         <input type="password" class="form-control form-control-xs"
                                                th:field="*{deployPassword}"
                                                placeholder="비밀번호 인증 시 (SSH 키 사용 시 불필요)">
                                     </div>
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">SSH 키 파일 경로</label>
+                                        <label class="font-weight">SSH 키 파일 경로</label>
                                         <input type="text" class="form-control form-control-xs"
                                                th:field="*{deployKeyPath}"
                                                placeholder="~/.ssh/id_rsa (절대 경로)">
                                     </div>
                                     <div class="form-group xs mb-0">
-                                        <label class="font-weight-bold">배포 대상 디렉토리</label>
+                                        <label class="font-weight">배포 대상 디렉토리</label>
                                         <input type="text" class="form-control form-control-xs"
                                                th:field="*{deployTargetDir}"
                                                placeholder="Linux: /opt/myapp   Windows: C:\Apps\myapp">
@@ -240,19 +240,19 @@
                                 </div>
                                 <div class="card-body compact" style="overflow-y:auto">
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">앱 이름 (프로세스 식별용)</label>
+                                        <label class="font-weight">앱 이름 (프로세스 식별용)</label>
                                         <input type="text" class="form-control form-control-xs"
                                                th:field="*{appName}" placeholder="myapp">
                                     </div>
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">종료 명령어 <small class="text-muted">(배포 전 실행)</small></label>
+                                        <label class="font-weight">종료 명령어 <small class="text-muted">(배포 전 실행)</small></label>
                                         <textarea class="form-control form-control-xs textarea-xs"
                                                   th:field="*{stopCommand}" rows="2"
                                                   placeholder="Linux:   pkill -f myapp.jar&#10;Windows: wmic process where &quot;commandline like '%%myapp.jar%%'&quot; delete"></textarea>
                                         <small class="form-text xs text-muted">실패해도 배포 계속 진행</small>
                                     </div>
                                     <div class="form-group xs">
-                                        <label class="font-weight-bold">시작 명령어 <small class="text-muted">(배포 후 실행)</small></label>
+                                        <label class="font-weight">시작 명령어 <small class="text-muted">(배포 후 실행)</small></label>
                                         <textarea class="form-control form-control-xs textarea-xs font-monospace"
                                                   th:field="*{startCommand}" rows="2" id="startCommandInput"
                                                   placeholder="Linux:   nohup java -jar /opt/myapp/app.jar &amp;&#10;Windows: Start-Process java -jar C:\Apps\app.jar"></textarea>

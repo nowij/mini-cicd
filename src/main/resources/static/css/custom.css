@@ -24,3 +24,8 @@ body, h1, h2, h3, h4, h5, h6,
 .modal, .alert {
     font-family: 'GmarketSans', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif !important;
 }
+
+input, textarea, select,
+.form-control, .custom-select, .custom-file-label {
+    font-weight: 300 !important;
+}
