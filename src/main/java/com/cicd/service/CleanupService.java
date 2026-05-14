@@ -5,7 +5,10 @@ import com.cicd.repository.BuildRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.annotation.SchedulingConfigurer;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,18 +21,28 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CleanupService {
+public class CleanupService implements SchedulingConfigurer {
 
     private final BuildRepository buildRepository;
+    private final SettingsService settingsService;
 
     @Value("${cicd.log-dir:./workspace/logs}")
     private String logDir;
 
-    // 매일 새벽 2시에 실행
-    @Scheduled(cron = "0 0 2 * * *")
+    // 설정이 바뀌면 다음 실행 시 새 cron이 반영됨
+    @Override
+    public void configureTasks(ScheduledTaskRegistrar registrar) {
+        registrar.addTriggerTask(
+            this::cleanOldBuilds,
+            context -> new CronTrigger(settingsService.getSettings().toCronExpression())
+                    .nextExecution(context)
+        );
+    }
+
     @Transactional
     public void cleanOldBuilds() {
-        LocalDateTime cutoff = LocalDateTime.now().minusWeeks(1);
+        var settings = settingsService.getSettings();
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(settings.getLogRetentionDays());
         List<Build> oldBuilds = buildRepository.findByStartedAtBefore(cutoff);
 
         if (oldBuilds.isEmpty()) return;
@@ -45,7 +58,7 @@ public class CleanupService {
         }
 
         buildRepository.deleteAll(oldBuilds);
-        log.info("오래된 빌드 정리 완료 - DB: {}건, 로그 파일: {}개 삭제 (기준: {})",
-                oldBuilds.size(), deletedFiles, cutoff);
+        log.info("오래된 빌드 정리 완료 - DB: {}건, 로그 파일: {}개 삭제 (기준: {}일 이전)",
+                oldBuilds.size(), deletedFiles, settings.getLogRetentionDays());
     }
 }

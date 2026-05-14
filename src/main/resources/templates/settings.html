@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>시스템 설정 - CI/CD Pipeline</title>
+    <link href="/vendor/fontawesome-free/css/all.min.css" rel="stylesheet">
+    <link href="/css/sb-admin-2.min.css" rel="stylesheet">
+    <link href="/css/custom.css" rel="stylesheet">
+</head>
+<body id="page-top">
+
+<div id="wrapper">
+
+    <!-- Sidebar -->
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+        <a class="sidebar-brand d-flex align-items-center justify-content-center" href="/">
+            <div class="sidebar-brand-icon"><i class="fas fa-rocket"></i></div>
+            <div class="sidebar-brand-text mx-3">CI/CD Pipeline</div>
+        </a>
+        <hr class="sidebar-divider my-0">
+        <li class="nav-item">
+            <a class="nav-link" href="/">
+                <i class="fas fa-fw fa-th-large"></i>
+                <span>대시보드</span>
+            </a>
+        </li>
+        <hr class="sidebar-divider">
+        <div class="sidebar-heading">관리</div>
+        <li class="nav-item">
+            <a class="nav-link" href="/projects/new">
+                <i class="fas fa-fw fa-plus-circle"></i>
+                <span>새 프로젝트</span>
+            </a>
+        </li>
+        <li class="nav-item active">
+            <a class="nav-link" href="/settings">
+                <i class="fas fa-fw fa-sliders-h"></i>
+                <span>시스템 설정</span>
+            </a>
+        </li>
+        <hr class="sidebar-divider d-none d-md-block">
+        <div class="text-center d-none d-md-inline">
+            <button class="rounded-circle border-0" id="sidebarToggle"></button>
+        </div>
+    </ul>
+
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+        <div id="content">
+
+            <!-- Topbar -->
+            <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+                <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+                    <i class="fa fa-bars"></i>
+                </button>
+                <span class="navbar-text font-weight-bold text-gray-800">
+                    <i class="fas fa-sliders-h mr-2 text-primary"></i>시스템 설정
+                </span>
+            </nav>
+
+            <!-- Page Content -->
+            <div class="container-fluid">
+
+                <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span th:text="${successMessage}"></span>
+                    <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+                </div>
+
+                <div class="row justify-content-center">
+                    <div class="col-lg-6">
+
+                        <form method="post" action="/settings">
+
+                            <!-- 로그 삭제 주기 -->
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">
+                                        <i class="fas fa-trash-alt mr-2"></i>로그 삭제 주기
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">
+                                        빌드 로그 파일과 빌드 기록을 자동으로 삭제할 보관 기간입니다.
+                                        설정된 일수가 지난 빌드는 다음 배치 실행 시 삭제됩니다.
+                                    </p>
+                                    <div class="form-group mb-0">
+                                        <label class="font-weight-bold small text-gray-700">보관 기간</label>
+                                        <div class="input-group" style="max-width: 220px;">
+                                            <input type="number"
+                                                   class="form-control"
+                                                   name="logRetentionDays"
+                                                   th:value="${settings.logRetentionDays}"
+                                                   min="1" max="365" required>
+                                            <div class="input-group-append">
+                                                <span class="input-group-text">일</span>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted mt-1">1일 ~ 365일 범위로 설정 가능합니다.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 배치 실행 시간 -->
+                            <div class="card shadow mb-4">
+                                <div class="card-header py-3">
+                                    <h6 class="m-0 font-weight-bold text-primary">
+                                        <i class="fas fa-clock mr-2"></i>배치 실행 시간
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-muted small mb-3">
+                                        로그 삭제 배치가 매일 실행될 시각입니다.
+                                        서버 부하가 적은 새벽 시간대를 권장합니다.
+                                    </p>
+                                    <div class="form-group mb-0">
+                                        <label class="font-weight-bold small text-gray-700">실행 시각</label>
+                                        <div class="d-flex align-items-center" style="gap: .5rem; max-width: 280px;">
+                                            <div class="input-group">
+                                                <select class="custom-select" name="cleanupHour">
+                                                    <option th:each="h : ${#numbers.sequence(0, 23)}"
+                                                            th:value="${h}"
+                                                            th:text="${#strings.toString(h).length() == 1 ? '0' + h : h} + '시'"
+                                                            th:selected="${h == settings.cleanupHour}">
+                                                    </option>
+                                                </select>
+                                            </div>
+                                            <span class="text-muted">:</span>
+                                            <div class="input-group">
+                                                <select class="custom-select" name="cleanupMinute">
+                                                    <option th:each="m : ${#numbers.sequence(0, 59, 5)}"
+                                                            th:value="${m}"
+                                                            th:text="${#strings.toString(m).length() == 1 ? '0' + m : m} + '분'"
+                                                            th:selected="${m == settings.cleanupMinute}">
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted mt-1">
+                                            현재 cron:
+                                            <code th:text="${settings.toCronExpression()}"></code>
+                                            — 변경 사항은 다음 배치 실행부터 반영됩니다.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save mr-1"></i>저장
+                                </button>
+                            </div>
+
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <footer class="sticky-footer bg-white">
+            <div class="container my-auto">
+                <div class="copyright text-center my-auto">
+                    <span>CI/CD Pipeline &copy; 2026</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+</div>
+
+<a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
+
+<script src="/vendor/jquery/jquery.min.js"></script>
+<script src="/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="/vendor/jquery-easing/jquery.easing.min.js"></script>
+<script src="/js/sb-admin-2.min.js"></script>
+</body>
+</html>
