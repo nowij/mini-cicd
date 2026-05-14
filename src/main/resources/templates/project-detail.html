@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${project.name} + ' - CI/CD'">프로젝트</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { background-color: #1a1a2e; }
+        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+        .badge-SUCCESS { background-color: #198754; }
+        .badge-FAILED { background-color: #dc3545; }
+        .badge-BUILDING, .badge-DEPLOYING { background-color: #0d6efd; animation: pulse 1.2s infinite; }
+        .badge-PENDING { background-color: #6c757d; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+        .build-row:hover { background-color: #f0f4ff; cursor: pointer; }
+        .branch-item { cursor: pointer; padding: 6px 12px; border-radius: 6px; }
+        .branch-item:hover { background: #f0f4ff; }
+        .branch-item.selected { background: #e7f0ff; font-weight: 600; color: #0d6efd; }
+        .branch-list { max-height: 260px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark px-4 py-2">
+    <a class="navbar-brand fw-bold" href="/"><i class="bi bi-rocket-takeoff me-2"></i>CI/CD Dashboard</a>
+</nav>
+
+<div class="container py-4">
+    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show">
+        <span th:text="${successMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show">
+        <span th:text="${errorMessage}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- 헤더 -->
+    <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <a href="/" class="text-muted text-decoration-none"><i class="bi bi-chevron-left"></i></a>
+            <h4 class="mb-0" th:text="${project.name}">프로젝트명</h4>
+            <span class="badge bg-secondary" th:text="${project.projectType.displayName}"></span>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary"
+                    th:data-project-id="${project.id}"
+                    th:data-project-name="${project.name}"
+                    th:data-project-branch="${project.branch}"
+                    onclick="openDeployModal(this.dataset.projectId, this.dataset.projectName, this.dataset.projectBranch)">
+                <i class="bi bi-play-fill me-1"></i>배포 시작
+            </button>
+            <a th:href="@{/projects/{id}/edit(id=${project.id})}" class="btn btn-outline-secondary">
+                <i class="bi bi-gear me-1"></i>설정
+            </a>
+            <form th:action="@{/projects/{id}/delete(id=${project.id})}" method="post"
+                  onsubmit="return confirm('프로젝트를 삭제하시겠습니까? 모든 빌드 기록도 삭제됩니다.')">
+                <button type="submit" class="btn btn-outline-danger">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <!-- 프로젝트 정보 -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">프로젝트 정보</h6>
+                    <dl class="row small mb-0">
+                        <dt class="col-5 text-muted">저장소</dt>
+                        <dd class="col-7 text-truncate">
+                            <a th:href="${project.repoUrl}" target="_blank"
+                               th:text="${project.repoUrl}" class="text-decoration-none">URL</a>
+                        </dd>
+                        <dt class="col-5 text-muted">브랜치</dt>
+                        <dd class="col-7" th:text="${project.branch}">main</dd>
+                        <dt class="col-5 text-muted">타입</dt>
+                        <dd class="col-7" th:text="${project.projectType.displayName}"></dd>
+                        <dt class="col-5 text-muted" th:if="${project.deployHost != null}">배포 서버</dt>
+                        <dd class="col-7" th:if="${project.deployHost != null}"
+                            th:text="${project.deployHost + ':' + project.deployPort}"></dd>
+                        <dt class="col-5 text-muted" th:if="${project.deployHost != null}">서버 OS</dt>
+                        <dd class="col-7" th:if="${project.deployHost != null}"
+                            th:text="${project.deployOs}"></dd>
+                        <dt class="col-5 text-muted">생성일</dt>
+                        <dd class="col-7" th:text="${#temporals.format(project.createdAt, 'yyyy-MM-dd')}"></dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- 빌드 히스토리 -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">빌드 히스토리</h6>
+                    <div th:if="${#lists.isEmpty(builds)}" class="text-center py-4 text-muted">
+                        <i class="bi bi-clock-history display-4"></i>
+                        <p class="mt-2">빌드 기록이 없습니다.</p>
+                    </div>
+                    <div class="table-responsive" th:unless="${#lists.isEmpty(builds)}">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>상태</th>
+                                    <th>브랜치</th>
+                                    <th>시작</th>
+                                    <th>소요시간</th>
+                                    <th>로그</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="build-row" th:each="build : ${builds}"
+                                    th:onclick="|location.href='/builds/${build.id}/logs'|">
+                                    <td class="text-muted small" th:text="${build.id}"></td>
+                                    <td>
+                                        <span class="badge rounded-pill"
+                                              th:classappend="'badge-' + ${build.status}"
+                                              th:text="${build.status}"></span>
+                                    </td>
+                                    <td class="small">
+                                        <span th:if="${build.branch != null}"
+                                              class="badge bg-light text-dark border">
+                                            <i class="bi bi-git me-1"></i>
+                                            <span th:text="${build.branch}"></span>
+                                        </span>
+                                        <span th:unless="${build.branch != null}" class="text-muted">-</span>
+                                    </td>
+                                    <td class="small" th:text="${#temporals.format(build.startedAt, 'MM/dd HH:mm:ss')}"></td>
+                                    <td class="small">
+                                        <span th:if="${build.finishedAt != null}"
+                                              th:text="${build.durationSeconds + 's'}"></span>
+                                        <span th:unless="${build.finishedAt != null}" class="text-primary">진행 중...</span>
+                                    </td>
+                                    <td>
+                                        <a th:href="@{/builds/{id}/logs(id=${build.id})}"
+                                           class="btn btn-outline-secondary btn-sm"
+                                           onclick="event.stopPropagation()">
+                                            <i class="bi bi-terminal me-1"></i>로그
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 브랜치 선택 배포 모달 -->
+<div class="modal fade" id="deployModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h5 class="modal-title fw-bold"><i class="bi bi-rocket-takeoff me-2 text-primary"></i>배포</h5>
+                    <p class="text-muted small mb-0" id="modal-project-name"></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-3">
+                <p class="small fw-semibold text-muted mb-2">배포할 브랜치 선택</p>
+
+                <div id="branch-loading" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                    <span class="text-muted small">브랜치 목록을 불러오는 중...</span>
+                </div>
+
+                <div id="branch-list-area" class="branch-list" style="display:none"></div>
+
+                <div id="branch-manual-area" style="display:none">
+                    <div class="alert alert-warning small py-2 mb-2">
+                        <i class="bi bi-exclamation-triangle me-1"></i>브랜치 목록을 불러오지 못했습니다. 직접 입력하세요.
+                    </div>
+                    <input type="text" id="branch-manual-input" class="form-control form-control-sm"
+                           placeholder="브랜치 이름 입력 (예: main)">
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <span class="me-auto small text-muted">
+                    선택: <strong id="selected-branch-label" class="text-primary">-</strong>
+                </span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="submitDeploy()">
+                    <i class="bi bi-play-fill me-1"></i>배포 시작
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="deploy-form" method="post" style="display:none">
+    <input type="hidden" name="branch" id="deploy-branch-input">
+</form>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentProjectId = null;
+    let selectedBranch = null;
+    const modal = new bootstrap.Modal(document.getElementById('deployModal'));
+
+    function openDeployModal(projectId, projectName, defaultBranch) {
+        currentProjectId = projectId;
+        selectedBranch = defaultBranch;
+
+        document.getElementById('modal-project-name').textContent = projectName;
+        document.getElementById('selected-branch-label').textContent = defaultBranch;
+        document.getElementById('branch-loading').style.display = 'block';
+        document.getElementById('branch-list-area').style.display = 'none';
+        document.getElementById('branch-manual-area').style.display = 'none';
+
+        modal.show();
+
+        fetch('/api/projects/' + projectId + '/branches')
+            .then(r => {
+                if (!r.ok) throw new Error('API 오류: ' + r.status);
+                return r.json();
+            })
+            .then(branches => renderBranches(branches, defaultBranch))
+            .catch(() => showManualInput(defaultBranch));
+    }
+
+    function renderBranches(branches, defaultBranch) {
+        const area = document.getElementById('branch-list-area');
+        area.innerHTML = '';
+
+        branches.forEach(b => {
+            const div = document.createElement('div');
+            div.className = 'branch-item d-flex align-items-center gap-2' + (b === defaultBranch ? ' selected' : '');
+            div.dataset.branch = b;
+            div.innerHTML = `<i class="bi bi-git text-muted"></i><span>${escapeHtml(b)}</span>`
+                + (b === defaultBranch ? '<span class="badge bg-primary ms-auto" style="font-size:.7rem">기본</span>' : '');
+            div.onclick = () => selectBranch(b);
+            area.appendChild(div);
+        });
+
+        document.getElementById('branch-loading').style.display = 'none';
+        area.style.display = 'block';
+        selectBranch(defaultBranch);
+    }
+
+    function selectBranch(branch) {
+        selectedBranch = branch;
+        document.getElementById('selected-branch-label').textContent = branch;
+        document.querySelectorAll('.branch-item').forEach(el => {
+            el.classList.toggle('selected', el.dataset.branch === branch);
+        });
+    }
+
+    function showManualInput(defaultBranch) {
+        document.getElementById('branch-loading').style.display = 'none';
+        document.getElementById('branch-manual-area').style.display = 'block';
+        const input = document.getElementById('branch-manual-input');
+        input.value = defaultBranch;
+        input.oninput = () => {
+            selectedBranch = input.value;
+            document.getElementById('selected-branch-label').textContent = input.value || '-';
+        };
+    }
+
+    function submitDeploy() {
+        const branch = selectedBranch
+            || document.getElementById('branch-manual-input').value
+            || 'main';
+        document.getElementById('deploy-form').action = '/projects/' + currentProjectId + '/deploy';
+        document.getElementById('deploy-branch-input').value = branch;
+        modal.hide();
+        document.getElementById('deploy-form').submit();
+    }
+
+    function escapeHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+</script>
+</body>
+</html>

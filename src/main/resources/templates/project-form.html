@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${isNew} ? '새 프로젝트' : '프로젝트 수정'">프로젝트</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { background-color: #1a1a2e; }
+        .section-title { font-size: .75rem; font-weight: 700; text-transform: uppercase;
+                         letter-spacing: .08em; color: #6c757d; }
+        .card { border: none; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark px-4 py-2">
+    <a class="navbar-brand fw-bold" href="/"><i class="bi bi-rocket-takeoff me-2"></i>CI/CD Dashboard</a>
+</nav>
+
+<div class="container py-4" style="max-width:800px">
+    <div class="d-flex align-items-center mb-4 gap-2">
+        <a href="/" class="text-muted text-decoration-none"><i class="bi bi-chevron-left"></i></a>
+        <h4 class="mb-0" th:text="${isNew} ? '새 프로젝트 추가' : '프로젝트 수정'">프로젝트</h4>
+    </div>
+
+    <form th:action="${isNew} ? @{/projects} : @{/projects/{id}/edit(id=${project.id})}"
+          th:object="${project}" method="post" enctype="multipart/form-data">
+
+        <!-- 기본 정보 -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="section-title mb-3">기본 정보</p>
+                <div class="mb-3">
+                    <label class="form-label">프로젝트 이름 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" th:field="*{name}" placeholder="My App" required>
+                    <div class="text-danger small" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">설명</label>
+                    <input type="text" class="form-control" th:field="*{description}" placeholder="프로젝트 설명 (선택)">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">프로젝트 타입 <span class="text-danger">*</span></label>
+                    <select class="form-select" th:field="*{projectType}" id="projectType">
+                        <option th:each="type : ${projectTypes}"
+                                th:value="${type}"
+                                th:text="${type.displayName}">타입</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Git 설정 -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="section-title mb-3">Git 저장소</p>
+                <div class="mb-3">
+                    <label class="form-label">저장소 URL <span class="text-danger">*</span></label>
+                    <input type="url" class="form-control" th:field="*{repoUrl}"
+                           placeholder="https://github.com/your-org/your-repo.git" required>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">브랜치</label>
+                        <input type="text" class="form-control" th:field="*{branch}" placeholder="main">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">빌드 서브디렉토리</label>
+                        <input type="text" class="form-control" th:field="*{buildSubDir}"
+                               placeholder="비워두면 루트 (예: backend)">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">GitHub Personal Access Token</label>
+                    <input type="password" class="form-control" th:field="*{githubToken}"
+                           placeholder="ghp_xxxx... (Private 저장소일 경우 필수)">
+                    <div class="form-text">Private 저장소 접근용. repo 권한이 있는 토큰을 입력하세요.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 빌드 설정 -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="section-title mb-3">빌드 설정</p>
+                <div class="mb-3">
+                    <label class="form-label">커스텀 빌드 명령어 (선택)</label>
+                    <input type="text" class="form-control" th:field="*{buildCommand}"
+                           placeholder="비워두면 프로젝트 타입별 기본값 사용">
+                    <div class="form-text" id="defaultBuildHint"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 배포 설정 -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="section-title mb-3">배포 서버 (SSH)</p>
+                <div class="form-text mb-3">비워두면 배포 없이 빌드만 수행합니다.</div>
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label class="form-label">서버 호스트</label>
+                        <input type="text" class="form-control" th:field="*{deployHost}"
+                               placeholder="192.168.1.100 또는 example.com">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">SSH 포트</label>
+                        <input type="number" class="form-control" th:field="*{deployPort}" value="22">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">SSH 사용자</label>
+                        <input type="text" class="form-control" th:field="*{deployUser}"
+                               placeholder="ubuntu, root, administrator ...">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">서버 OS</label>
+                        <select class="form-select" th:field="*{deployOs}">
+                            <option th:each="os : ${deployOsTypes}"
+                                    th:value="${os}" th:text="${os}">OS</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">SSH 비밀번호</label>
+                    <input type="password" class="form-control" th:field="*{deployPassword}"
+                           placeholder="비밀번호 인증 시 입력 (SSH 키 사용 시 불필요)">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">SSH 키 파일 경로</label>
+                    <input type="text" class="form-control" th:field="*{deployKeyPath}"
+                           placeholder="~/.ssh/id_rsa (CI/CD 서버 기준 절대 경로)">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">배포 대상 디렉토리</label>
+                    <input type="text" class="form-control" th:field="*{deployTargetDir}"
+                           placeholder="Linux: /opt/myapp   Windows: C:\Apps\myapp">
+                </div>
+            </div>
+        </div>
+
+        <!-- 앱 실행 설정 -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <p class="section-title mb-3">앱 실행 / 종료 명령어</p>
+                <div class="mb-3">
+                    <label class="form-label">앱 이름 (프로세스 식별용)</label>
+                    <input type="text" class="form-control" th:field="*{appName}" placeholder="myapp">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">종료 명령어 (배포 전 실행)</label>
+                    <textarea class="form-control font-monospace" th:field="*{stopCommand}" rows="3"
+                              placeholder="Linux:   pkill -f myapp.jar&#10;Windows: wmic process where &quot;commandline like '%%myapp.jar%%'&quot; delete"></textarea>
+                    <div class="form-text">실패해도 배포를 계속 진행합니다.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">시작 명령어 (배포 후 실행)</label>
+                    <textarea class="form-control font-monospace" th:field="*{startCommand}" rows="4"
+                              id="startCommandInput"
+                              placeholder="Linux:   nohup java -jar /opt/myapp/app.jar > /opt/myapp/app.log 2>&1 &&#10;Windows: Start-Process -FilePath &quot;java&quot; -ArgumentList &quot;-jar C:\Apps\myapp\app.jar&quot; -WindowStyle Hidden"></textarea>
+                    <div class="form-text text-muted" id="startCommandExamples"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 실행 스크립트 업로드 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <p class="section-title mb-1">실행 스크립트 파일 업로드 <span class="text-muted fw-normal">(선택)</span></p>
+                <p class="small text-muted mb-3">
+                    복잡한 시작/종료 명령어를 스크립트 파일로 작성해서 올리면, 배포 시 서버의 배포 디렉토리에 자동으로 전송됩니다.<br>
+                    이후 위 <strong>시작 명령어</strong>에 스크립트 파일명만 입력하면 됩니다.
+                </p>
+
+                <!-- 기존 스크립트 표시 (수정 페이지) -->
+                <div th:if="${project.scriptFileName != null}" class="d-flex align-items-center gap-2 mb-3 p-2 border rounded bg-light">
+                    <i class="bi bi-file-earmark-code text-success fs-5"></i>
+                    <div>
+                        <div class="fw-semibold small" th:text="${project.scriptFileName}"></div>
+                        <div class="text-muted" style="font-size:.75rem">현재 등록된 스크립트. 새 파일을 선택하면 교체됩니다.</div>
+                    </div>
+                    <form th:action="@{/projects/{id}/script/delete(id=${project.id})}"
+                          method="post" class="ms-auto"
+                          onsubmit="return confirm('스크립트 파일을 삭제하시겠습니까?')">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-trash"></i> 삭제
+                        </button>
+                    </form>
+                </div>
+
+                <div class="mb-2">
+                    <input type="file" class="form-control" name="scriptFile"
+                           id="scriptFileInput" accept=".sh,.bat"
+                           onchange="onScriptFileSelected(this)">
+                    <div class="form-text">.sh (Linux) 또는 .bat (Windows) 파일만 가능합니다.</div>
+                </div>
+
+                <!-- 파일 선택 시 명령어 힌트 -->
+                <div id="scriptHint" class="alert alert-info py-2 small mt-2" style="display:none">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    시작 명령어에 아래와 같이 입력하세요:<br>
+                    <code id="scriptHintCode" class="fw-bold"></code>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-5">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check-lg me-1"></i>
+                <span th:text="${isNew} ? '프로젝트 생성' : '저장'">저장</span>
+            </button>
+            <a th:href="${isNew} ? @{/} : @{/projects/{id}(id=${project.id})}" class="btn btn-outline-secondary">취소</a>
+        </div>
+    </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const defaults = {
+        MAVEN: 'mvn clean package -DskipTests',
+        GRADLE: './gradlew build -x test',
+        REACT: 'npm install && npm run build',
+        CUSTOM: '직접 입력 필요'
+    };
+    const startExamples = {
+        MAVEN: 'Linux: nohup java -jar /opt/myapp/app.jar > /opt/myapp/app.log 2>&1 &\nWindows: start /B java -jar C:\\Apps\\myapp\\app.jar',
+        GRADLE: 'Linux: nohup java -jar /opt/myapp/app.jar > /opt/myapp/app.log 2>&1 &',
+        REACT: 'Linux: nginx -s reload  또는  pm2 restart myapp',
+        CUSTOM: ''
+    };
+
+    function updateHints() {
+        const type = document.getElementById('projectType').value;
+        document.getElementById('defaultBuildHint').textContent = '기본값: ' + (defaults[type] || '');
+        document.getElementById('startCommandExamples').textContent = startExamples[type] || '';
+    }
+
+    document.getElementById('projectType').addEventListener('change', updateHints);
+    updateHints();
+
+    function onScriptFileSelected(input) {
+        const hint = document.getElementById('scriptHint');
+        const hintCode = document.getElementById('scriptHintCode');
+        if (!input.files || !input.files[0]) { hint.style.display = 'none'; return; }
+
+        const fileName = input.files[0].name;
+        const deployDir = document.querySelector('[id$="deployTargetDir"]')?.value || '/opt/myapp';
+        const os = document.querySelector('[id$="deployOs"]')?.value || 'LINUX';
+
+        let cmd;
+        if (os === 'WINDOWS') {
+            cmd = deployDir.replace(/\//g, '\\') + '\\' + fileName;
+        } else {
+            cmd = 'bash ' + deployDir + '/' + fileName;
+        }
+        hintCode.textContent = cmd;
+        hint.style.display = 'block';
+    }
+
+    // OS 변경 시 힌트도 갱신
+    document.querySelector('[id$="deployOs"]')?.addEventListener('change', () => {
+        const input = document.getElementById('scriptFileInput');
+        if (input?.files[0]) onScriptFileSelected(input);
+    });
+</script>
+</body>
+</html>

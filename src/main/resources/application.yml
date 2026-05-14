@@ -1,0 +1,29 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: cicd
+  datasource:
+    url: jdbc:h2:file:./data/cicddb;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  thymeleaf:
+    cache: false
+
+cicd:
+  workspace: ./workspace
+  log-dir: ./workspace/logs
+  scripts-dir: ./workspace/scripts

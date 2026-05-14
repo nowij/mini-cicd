@@ -1,0 +1,49 @@
+# ========================
+# Compiled / Build output
+# ========================
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# ========================
+# IDE
+# ========================
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+
+# ========================
+# Spring Boot runtime data
+# ========================
+data/
+workspace/
+
+# ========================
+# Logs
+# ========================
+*.log
+logs/
+
+# ========================
+# Environment / Secrets
+# ========================
+.env
+.env.*
+application-local.yml
+application-secret.yml
+
+.claude

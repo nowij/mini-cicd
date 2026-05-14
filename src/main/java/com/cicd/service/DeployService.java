@@ -1,0 +1,192 @@
+package com.cicd.service;
+
+import com.cicd.model.Project;
+import com.jcraft.jsch.*;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.io.*;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Properties;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class DeployService {
+
+    private final LogService logService;
+    private final ScriptService scriptService;
+
+    public void deploy(Project project, Path artifactPath, Long buildId) throws Exception {
+        if (project.getDeployHost() == null || project.getDeployHost().isBlank()) {
+            logService.append(buildId, "[DEPLOY] 배포 서버가 설정되지 않아 배포를 건너뜁니다.");
+            return;
+        }
+
+        Session session = connectSsh(project, buildId);
+        try {
+            // 1. 기존 앱 종료
+            if (hasValue(project.getStopCommand())) {
+                logService.append(buildId, "[DEPLOY] 기존 앱 종료 중...");
+                runRemoteCommand(session, project.getStopCommand(), buildId, true);
+            }
+
+            // 2. 배포 디렉토리 생성
+            if (hasValue(project.getDeployTargetDir())) {
+                String mkdirCmd = project.getDeployOs().name().equals("WINDOWS")
+                        ? "if not exist \"" + project.getDeployTargetDir() + "\" mkdir \"" + project.getDeployTargetDir() + "\""
+                        : "mkdir -p " + project.getDeployTargetDir();
+                runRemoteCommand(session, mkdirCmd, buildId, true);
+            }
+
+            // 3. 아티팩트 업로드
+            logService.append(buildId, "[DEPLOY] 파일 업로드 중...");
+            uploadArtifacts(session, artifactPath, project.getDeployTargetDir(), buildId);
+
+            // 3.5 스크립트 파일 업로드 (등록된 경우)
+            if (hasValue(project.getScriptFileName())) {
+                uploadScriptFile(session, project, buildId);
+            }
+
+            // 4. 앱 시작
+            if (hasValue(project.getStartCommand())) {
+                logService.append(buildId, "[DEPLOY] 앱 시작 중...");
+                runRemoteCommand(session, project.getStartCommand(), buildId, false);
+            }
+
+            logService.append(buildId, "[DEPLOY] 배포 완료!");
+        } finally {
+            if (session != null && session.isConnected()) {
+                session.disconnect();
+            }
+        }
+    }
+
+    private Session connectSsh(Project project, Long buildId) throws Exception {
+        JSch jsch = new JSch();
+
+        if (hasValue(project.getDeployKeyPath())) {
+            jsch.addIdentity(project.getDeployKeyPath());
+            logService.append(buildId, "[DEPLOY] SSH 키 인증 사용: " + project.getDeployKeyPath());
+        }
+
+        int port = project.getDeployPort() != null ? project.getDeployPort() : 22;
+        Session session = jsch.getSession(project.getDeployUser(), project.getDeployHost(), port);
+
+        if (hasValue(project.getDeployPassword())) {
+            session.setPassword(project.getDeployPassword());
+        }
+
+        Properties config = new Properties();
+        config.put("StrictHostKeyChecking", "no");
+        session.setConfig(config);
+        session.connect(30_000);
+
+        logService.append(buildId, "[DEPLOY] SSH 연결 성공: " + project.getDeployUser() + "@" + project.getDeployHost() + ":" + port);
+        return session;
+    }
+
+    private void runRemoteCommand(Session session, String command, Long buildId, boolean ignoreError) throws Exception {
+        ChannelExec channel = (ChannelExec) session.openChannel("exec");
+        channel.setCommand(command);
+        channel.setInputStream(null);
+
+        ByteArrayOutputStream errStream = new ByteArrayOutputStream();
+        channel.setErrStream(errStream);
+
+        InputStream is = channel.getInputStream();
+        channel.connect();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                logService.append(buildId, line);
+            }
+        }
+
+        int exitCode = channel.getExitStatus();
+        channel.disconnect();
+
+        if (exitCode != 0) {
+            String errMsg = errStream.toString();
+            if (ignoreError) {
+                logService.append(buildId, "[WARN] 명령어 종료 코드: " + exitCode + (errMsg.isBlank() ? "" : " - " + errMsg));
+            } else {
+                throw new RuntimeException("원격 명령어 실패 (종료 코드 " + exitCode + "): " + errMsg);
+            }
+        }
+    }
+
+    private void uploadArtifacts(Session session, Path localPath, String remotePath, Long buildId) throws Exception {
+        ChannelSftp sftp = (ChannelSftp) session.openChannel("sftp");
+        sftp.connect();
+        try {
+            if (Files.isDirectory(localPath)) {
+                uploadDirectory(sftp, localPath, remotePath, buildId);
+            } else {
+                String remoteFile = remotePath + "/" + localPath.getFileName();
+                sftp.put(localPath.toString(), remoteFile);
+                logService.append(buildId, "[DEPLOY] 업로드 완료: " + localPath.getFileName());
+            }
+        } finally {
+            sftp.disconnect();
+        }
+    }
+
+    private void uploadDirectory(ChannelSftp sftp, Path localDir, String remotePath, Long buildId) throws Exception {
+        try { sftp.mkdir(remotePath); } catch (SftpException ignored) {}
+
+        Files.walkFileTree(localDir, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                String rel = localDir.relativize(dir).toString().replace("\\", "/");
+                String remoteDir = rel.isEmpty() ? remotePath : remotePath + "/" + rel;
+                try { sftp.mkdir(remoteDir); } catch (SftpException ignored) {}
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                String rel = localDir.relativize(file).toString().replace("\\", "/");
+                try {
+                    sftp.put(file.toString(), remotePath + "/" + rel);
+                    logService.append(buildId, "[DEPLOY] 업로드: " + rel);
+                } catch (SftpException e) {
+                    throw new IOException("SFTP 업로드 실패: " + rel, e);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private void uploadScriptFile(Session session, Project project, Long buildId) throws Exception {
+        scriptService.getScriptPath(project.getId(), project.getScriptFileName()).ifPresent(scriptPath -> {
+            try {
+                ChannelSftp sftp = (ChannelSftp) session.openChannel("sftp");
+                sftp.connect();
+                try {
+                    String remotePath = project.getDeployTargetDir() + "/" + project.getScriptFileName();
+                    sftp.put(scriptPath.toString(), remotePath);
+                    logService.append(buildId, "[DEPLOY] 스크립트 업로드: " + project.getScriptFileName());
+                } finally {
+                    sftp.disconnect();
+                }
+                // Linux: 실행 권한 부여
+                if (project.getDeployOs().name().equals("LINUX")) {
+                    String chmod = "chmod +x " + project.getDeployTargetDir() + "/" + project.getScriptFileName();
+                    runRemoteCommand(session, chmod, buildId, true);
+                }
+            } catch (Exception e) {
+                log.warn("Script upload failed: {}", e.getMessage());
+                try { logService.append(buildId, "[WARN] 스크립트 업로드 실패: " + e.getMessage()); }
+                catch (Exception ignored) {}
+            }
+        });
+    }
+
+    private boolean hasValue(String s) {
+        return s != null && !s.isBlank();
+    }
+}
